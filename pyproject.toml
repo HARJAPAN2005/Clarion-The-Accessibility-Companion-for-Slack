@@ -1,0 +1,22 @@
+[project]
+name = "clarion"
+version = "0.1.0"
+description = "Clarion — the accessibility layer for Slack. Built for the Slack Agent Builder Challenge."
+requires-python = ">=3.10"
+dependencies = [
+    "slack-bolt>=1.28.0",
+    "slack-sdk>=3.36.0",
+    "openai>=1.0.0",
+    "requests>=2.32.0",
+    "slack-cli-hooks<1.0.0",
+]
+
+[tool.slack]
+# Entry points the Slack CLI can run:
+#   slack run                # Socket Mode  -> app.py
+#   slack run app_oauth.py   # HTTP + OAuth -> enables the Slack MCP Server
+main = "app.py"
+
+[tool.setuptools]
+packages = ["listeners"]
+

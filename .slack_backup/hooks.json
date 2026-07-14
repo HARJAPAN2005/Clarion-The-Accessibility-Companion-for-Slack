@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "get-hooks": "python -m slack_cli_hooks.hooks.get_hooks",
+    "get-manifest": "python -m slack_cli_hooks.hooks.get_manifest",
+    "start": "python -X dev -m slack_cli_hooks.hooks.start",
+    "check-update": "python -m slack_cli_hooks.hooks.check_update",
+    "doctor": "python -m slack_cli_hooks.hooks.doctor"
+  }
+}

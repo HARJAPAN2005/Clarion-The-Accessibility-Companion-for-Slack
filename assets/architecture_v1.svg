@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 780" font-family="Inter, 'Helvetica Neue', Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f7f7fb"/>
+      <stop offset="1" stop-color="#eef0f7"/>
+    </linearGradient>
+    <linearGradient id="agent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4a3aff"/>
+      <stop offset="1" stop-color="#7b5cff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1b1b3a" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#6b6b8a"/>
+    </marker>
+    <marker id="arrowW" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#ffffff"/>
+    </marker>
+  </defs>
+
+  <rect width="1200" height="780" fill="url(#bg)"/>
+
+  <!-- Title -->
+  <text x="40" y="52" font-size="30" font-weight="800" fill="#1b1b3a">⚓ Clarion — Architecture</text>
+  <text x="40" y="80" font-size="16" fill="#5a5a78">The accessibility layer for Slack · Slack Agent Builder Challenge</text>
+
+  <!-- ============ LAYER 1: Slack surfaces ============ -->
+  <rect x="40" y="110" width="330" height="620" rx="18" fill="#ffffff" filter="url(#shadow)"/>
+  <text x="60" y="142" font-size="15" font-weight="700" fill="#8a8aa5" letter-spacing="1">SLACK SURFACES</text>
+
+  <g font-size="14.5" fill="#22223b">
+    <rect x="62" y="158" width="286" height="60" rx="12" fill="#f0f0fa"/>
+    <text x="80" y="184" font-weight="700">@Clarion mention</text>
+    <text x="80" y="204" fill="#5a5a78" font-size="13">in any channel or thread</text>
+
+    <rect x="62" y="230" width="286" height="60" rx="12" fill="#f0f0fa"/>
+    <text x="80" y="256" font-weight="700">Direct message</text>
+    <text x="80" y="276" fill="#5a5a78" font-size="13">paste text → plain-language reply</text>
+
+    <rect x="62" y="302" width="286" height="80" rx="12" fill="#f0f0fa"/>
+    <text x="80" y="328" font-weight="700">Message shortcuts</text>
+    <text x="80" y="348" fill="#5a5a78" font-size="13">Simplify · Catch me up ·</text>
+    <text x="80" y="366" fill="#5a5a78" font-size="13">Describe image (alt-text)</text>
+
+    <rect x="62" y="394" width="286" height="80" rx="12" fill="#f0f0fa"/>
+    <text x="80" y="420" font-weight="700">App Home + Messages tab</text>
+    <text x="80" y="440" fill="#5a5a78" font-size="13">reading level, language,</text>
+    <text x="80" y="458" fill="#5a5a78" font-size="13">auto alt-text · suggested prompts</text>
+  </g>
+
+  <text x="62" y="512" font-size="13" font-weight="700" fill="#8a8aa5">SERVED BY</text>
+  <rect x="62" y="524" width="286" height="70" rx="12" fill="#eafaf1" stroke="#37b579" stroke-width="1.5"/>
+  <text x="80" y="552" font-size="14.5" font-weight="700" fill="#1b7a48">Block Kit UI</text>
+  <text x="80" y="574" font-size="13" fill="#2f7d55">cards · digests · feedback buttons · Home view</text>
+
+  <text x="62" y="628" font-size="13" font-weight="700" fill="#8a8aa5">STREAMING &amp; STATUS</text>
+  <rect x="62" y="640" width="286" height="66" rx="12" fill="#fff4e6" stroke="#e8912a" stroke-width="1.5"/>
+  <text x="80" y="668" font-size="14.5" font-weight="700" fill="#a35b00">say_stream + set_status</text>
+  <text x="80" y="688" font-size="13" fill="#a35b00">"thinking" states + streamed output</text>
+
+  <!-- ============ LAYER 2: Bolt app + Agent ============ -->
+  <rect x="410" y="110" width="360" height="620" rx="18" fill="#ffffff" filter="url(#shadow)"/>
+  <text x="430" y="142" font-size="15" font-weight="700" fill="#8a8aa5" letter-spacing="1">BOLT FOR PYTHON APP</text>
+
+  <rect x="432" y="158" width="316" height="86" rx="12" fill="#f0f0fa"/>
+  <text x="450" y="184" font-size="14.5" font-weight="700" fill="#22223b">Listener router</text>
+  <text x="450" y="206" font-size="13" fill="#5a5a78">events · actions · shortcuts · views</text>
+  <text x="450" y="226" font-size="13" fill="#5a5a78">session + preference store</text>
+
+  <!-- Agent core -->
+  <rect x="432" y="262" width="316" height="180" rx="14" fill="url(#agent)" filter="url(#shadow)"/>
+  <text x="452" y="292" font-size="16" font-weight="800" fill="#ffffff">Clarion Agent core</text>
+  <text x="452" y="314" font-size="13" fill="#d9d4ff">Claude Agent SDK · agent loop</text>
+  <line x1="452" y1="326" x2="728" y2="326" stroke="#ffffff" stroke-opacity="0.3"/>
+  <g font-size="12.5" fill="#ffffff">
+    <text x="452" y="350">tool: simplify_text</text>
+    <text x="452" y="372">tool: summarize_thread</text>
+    <text x="452" y="394">tool: generate_alt_text</text>
+    <text x="452" y="416">tool: define_term</text>
+    <text x="608" y="350">tool: inclusive_check</text>
+    <text x="608" y="380" fill="#d9d4ff" font-size="11.5">model picks the</text>
+    <text x="608" y="396" fill="#d9d4ff" font-size="11.5">right tool per</text>
+    <text x="608" y="412" fill="#d9d4ff" font-size="11.5">request</text>
+  </g>
+
+  <rect x="432" y="460" width="316" height="60" rx="12" fill="#eef7ff" stroke="#3b82c4" stroke-width="1.5"/>
+  <text x="450" y="486" font-size="14" font-weight="700" fill="#1f5c94">Graceful fallback layer</text>
+  <text x="450" y="506" font-size="12.5" fill="#2b6ba8">deterministic offline results → demo never dead-ends</text>
+
+  <text x="432" y="556" font-size="13" font-weight="700" fill="#8a8aa5">RUNTIME MODES</text>
+  <rect x="432" y="568" width="152" height="60" rx="12" fill="#f0f0fa"/>
+  <text x="448" y="592" font-size="13" font-weight="700" fill="#22223b">app.py</text>
+  <text x="448" y="612" font-size="12" fill="#5a5a78">Socket Mode</text>
+  <rect x="596" y="568" width="152" height="60" rx="12" fill="#f0f0fa"/>
+  <text x="612" y="592" font-size="13" font-weight="700" fill="#22223b">app_oauth.py</text>
+  <text x="612" y="612" font-size="12" fill="#5a5a78">HTTP + OAuth</text>
+
+  <!-- ============ LAYER 3: The 3 challenge technologies ============ -->
+  <rect x="810" y="110" width="350" height="620" rx="18" fill="#ffffff" filter="url(#shadow)"/>
+  <text x="830" y="142" font-size="15" font-weight="700" fill="#8a8aa5" letter-spacing="1">CHALLENGE TECHNOLOGIES</text>
+
+  <rect x="832" y="162" width="306" height="120" rx="14" fill="#f3f0ff" stroke="#7b5cff" stroke-width="2"/>
+  <circle cx="856" cy="190" r="7" fill="#7b5cff"/>
+  <text x="874" y="195" font-size="15" font-weight="800" fill="#4a3aff">① Slack AI capability</text>
+  <text x="850" y="222" font-size="13" fill="#3d3d5c">Plain-language rewrites, alt-text,</text>
+  <text x="850" y="242" font-size="13" fill="#3d3d5c">catch-up digests &amp; tone checks via</text>
+  <text x="850" y="262" font-size="13" fill="#3d3d5c">the Claude Agent SDK.</text>
+
+  <rect x="832" y="300" width="306" height="120" rx="14" fill="#eafaf1" stroke="#37b579" stroke-width="2"/>
+  <circle cx="856" cy="328" r="7" fill="#37b579"/>
+  <text x="874" y="333" font-size="15" font-weight="800" fill="#1b7a48">② Slack MCP Server</text>
+  <text x="850" y="360" font-size="13" fill="#2f5d45">Reads thread history the governed</text>
+  <text x="850" y="380" font-size="13" fill="#2f5d45">way to build catch-up digests</text>
+  <text x="850" y="400" font-size="13" fill="#2f5d45">(HTTP/OAuth mode).</text>
+
+  <rect x="832" y="438" width="306" height="120" rx="14" fill="#fff4e6" stroke="#e8912a" stroke-width="2"/>
+  <circle cx="856" cy="466" r="7" fill="#e8912a"/>
+  <text x="874" y="471" font-size="15" font-weight="800" fill="#a35b00">③ Real-Time Search API</text>
+  <text x="850" y="498" font-size="13" fill="#6b4a1a">Defines acronyms &amp; jargon using</text>
+  <text x="850" y="518" font-size="13" fill="#6b4a1a">live workspace context, so newcomers</text>
+  <text x="850" y="538" font-size="13" fill="#6b4a1a">aren't excluded by insider shorthand.</text>
+
+  <rect x="832" y="576" width="306" height="130" rx="14" fill="#f0f0fa"/>
+  <text x="850" y="604" font-size="14" font-weight="700" fill="#22223b">Slack Web API</text>
+  <text x="850" y="628" font-size="13" fill="#5a5a78">reactions (👀 / ✅) · post replies ·</text>
+  <text x="850" y="648" font-size="13" fill="#5a5a78">open DMs · publish Home view</text>
+  <line x1="850" y1="662" x2="1120" y2="662" stroke="#dcdce8"/>
+  <text x="850" y="686" font-size="12.5" fill="#8a8aa5">Anthropic API — model inference for</text>
+  <text x="850" y="702" font-size="12.5" fill="#8a8aa5">every language tool</text>
+
+  <!-- ============ Arrows between layers ============ -->
+  <line x1="370" y1="300" x2="428" y2="300" stroke="#6b6b8a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="372" y="290" font-size="11" fill="#6b6b8a">invoke</text>
+
+  <line x1="770" y1="230" x2="828" y2="222" stroke="#7b5cff" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="360" x2="828" y2="360" stroke="#37b579" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="480" x2="828" y2="498" stroke="#e8912a" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="770" y1="410" x2="828" y2="620" stroke="#9a9ab5" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+
+  <!-- return arrow surfaces <- agent (streamed) -->
+  <path d="M430 480 C 395 520, 395 300, 370 250" fill="none" stroke="#37b579" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+  <text x="300" y="250" font-size="11" fill="#37b579" transform="rotate(0)">streamed reply</text>
+</svg>

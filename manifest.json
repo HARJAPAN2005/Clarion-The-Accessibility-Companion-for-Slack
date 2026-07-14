@@ -1,0 +1,85 @@
+{
+  "display_information": {
+    "name": "Clarion",
+    "description": "The accessibility layer for Slack. Plain-language rewrites, catch-up digests, screen-reader alt-text, and instant jargon definitions.",
+    "background_color": "#1b1b3a",
+    "long_description": "Clarion makes every Slack conversation accessible to everyone. It rewrites dense, jargon-heavy messages into clear plain language for neurodivergent colleagues, non-native English speakers, and anyone with a cognitive or reading difference. It produces catch-up digests of long threads, generates screen-reader alt-text for images, and defines acronyms and jargon in real time using workspace context. Clarion is an inclusion layer that works wherever your team already works."
+  },
+  "features": {
+    "app_home": {
+      "home_tab_enabled": true,
+      "messages_tab_enabled": true,
+      "messages_tab_read_only_enabled": false
+    },
+    "bot_user": {
+      "display_name": "Clarion",
+      "always_online": true
+    },
+    "assistant_view": {
+      "assistant_description": "Ask Clarion to simplify a message, summarize a thread, describe an image, or define a term.",
+      "suggested_prompts": []
+    },
+    "shortcuts": [
+      {
+        "name": "Simplify this message",
+        "type": "message",
+        "callback_id": "simplify_message",
+        "description": "Rewrite this message in clear, plain language."
+      },
+      {
+        "name": "Describe image",
+        "type": "message",
+        "callback_id": "alt_text_message",
+        "description": "Generate screen-reader alt-text for images in this message."
+      },
+      {
+        "name": "Catch me up",
+        "type": "message",
+        "callback_id": "digest_thread",
+        "description": "Summarize this thread into a plain-language catch-up digest."
+      }
+    ]
+  },
+  "oauth_config": {
+    "redirect_urls": [
+      "https://example.ngrok-free.app/slack/oauth_redirect"
+    ],
+    "scopes": {
+      "bot": [
+        "commands",
+        "app_mentions:read",
+        "assistant:write",
+        "channels:history",
+        "channels:read",
+        "chat:write",
+        "files:read",
+        "groups:history",
+        "groups:read",
+        "im:history",
+        "im:read",
+        "im:write",
+        "metadata.message:read",
+        "reactions:read",
+        "reactions:write",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "event_subscriptions": {
+      "bot_events": [
+        "app_home_opened",
+        "app_mention",
+        "message.im",
+        "message.channels",
+        "message.groups"
+      ]
+    },
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": true,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}

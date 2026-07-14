@@ -1,0 +1,6 @@
+slack-bolt>=1.28.0
+slack-cli-hooks<1.0.0
+slack-sdk>=3.36.0
+openai>=1.0.0
+requests>=2.32.0
+python-dotenv
