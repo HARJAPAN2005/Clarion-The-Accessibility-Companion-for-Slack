@@ -1,15 +1,21 @@
 """
-Clarion — the accessibility layer for Slack.
+app — Clarion Socket Mode entry point.
 
-Socket Mode entry point. Use this for local development and the hackathon demo.
-For the Slack MCP Server (HTTP + OAuth), run `app_oauth.py` instead.
+Start Clarion in Socket Mode for local development:
 
-    slack run                # runs this file (socket mode)
-    slack run app_oauth.py   # runs the HTTP/OAuth server (enables the Slack MCP Server)
+    python app.py
+
+Or use the Slack CLI:
+
+    slack run
+
+For the HTTP + OAuth server (which enables the Slack MCP Server), run
+``app_oauth.py`` instead.
 """
 
 import logging
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,57 +25,59 @@ from slack_bolt.adapter.socket_mode import SocketModeHandler
 
 from listeners import register_listeners
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 logger = logging.getLogger("clarion")
 
 app = App(token=os.environ["SLACK_BOT_TOKEN"])
-
-# Wire up every event, action, shortcut, and view handler.
 register_listeners(app)
 
 
 def _startup_check() -> None:
-    print("-" * 36)
-    
+    """Log environment and connectivity diagnostics at startup."""
+    separator = "-" * 48
+    logger.info(separator)
+
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if api_key:
-        print("✓ API Key Found")
+        logger.info("OpenRouter API key: configured")
     else:
-        print("✗ API Key Missing (falling back to offline mode)")
-        
+        logger.warning("OpenRouter API key: not set — running in offline fallback mode")
+
     model = os.environ.get("OPENROUTER_MODEL", "poolside/laguna-xs-2.1:free")
-    vision_model = os.environ.get("OPENROUTER_VISION_MODEL", "Not configured")
+    vision_model = os.environ.get("OPENROUTER_VISION_MODEL", "not configured")
     if os.environ.get("GEMINI_API_KEY"):
-        vision_model = "gemini-3.5-flash (via Google API)"
-    print(f"✓ Text Model Loaded: {model}")
-    print(f"✓ Vision Model Loaded: {vision_model}")
-    
+        vision_model = "gemini-2.0-flash (via Google Gemini API)"
+
+    logger.info("Text model  : %s", model)
+    logger.info("Vision model: %s", vision_model)
+
     if api_key:
         try:
             import requests
+
             response = requests.get(
                 "https://openrouter.ai/api/v1/models",
                 headers={"Authorization": f"Bearer {api_key}"},
-                timeout=5
+                timeout=5,
             )
             if response.status_code == 200:
-                print("✓ OpenRouter Reachable")
+                logger.info("OpenRouter reachability: OK")
             else:
-                print(f"✗ OpenRouter Unreachable (HTTP {response.status_code})")
-        except Exception as e:
-            print(f"✗ OpenRouter Unreachable: {e}")
-            
-    print("-" * 36)
-    print("[AI] Provider    : OpenRouter")
-    print(f"[AI] Text Model  : {model}")
-    print(f"[AI] Vision Model: {vision_model}")
-    print("-" * 36)
+                logger.warning("OpenRouter reachability: HTTP %s", response.status_code)
+        except Exception as exc:
+            logger.warning("OpenRouter reachability: unreachable (%s)", exc)
+
+    logger.info(separator)
 
 
 def main() -> None:
+    """Start the Clarion Socket Mode server."""
     _startup_check()
     handler = SocketModeHandler(app, os.environ["SLACK_APP_TOKEN"])
-    logger.info("⚓ Clarion is online — making Slack accessible to everyone.")
+    logger.info("Clarion is online — making Slack accessible to everyone.")
     handler.start()
 
 

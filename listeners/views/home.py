@@ -112,7 +112,7 @@ def build_home_view(user_id: str) -> dict[str, Any]:
                     {
                         "type": "mrkdwn",
                         "text": (
-                            "Built for the Slack Agent Builder Challenge · "
+                            "Clarion · Open source accessibility for Slack · "
                             "Powered by Slack AI, the Slack MCP Server & the Real-Time Search API"
                         ),
                     }

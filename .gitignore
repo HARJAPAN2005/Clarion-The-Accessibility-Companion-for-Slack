@@ -1,8 +1,90 @@
+# =============================================================================
+# Clarion — .gitignore
+# =============================================================================
+
+# --- Credentials & Secrets ---------------------------------------------------
 .env
-.venv/
-__pycache__/
-*.pyc
-data/
-.slack/
-*.log
 .ENV
+.env.*
+!.env.example
+
+# --- Python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+parts/
+var/
+sdist/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-link
+*.manifest
+*.spec
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.python-version
+Pipfile.lock
+poetry.lock
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+nosetests.xml
+junit*.xml
+
+# Linting & type checking
+.ruff_cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+
+# --- Slack CLI & SDK ---------------------------------------------------------
+.slack/
+.slack_backup/
+
+# OAuth installation/state stores (runtime data, not source)
+data/
+
+# --- IDE & Editor ------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- Docker ------------------------------------------------------------------
+*.log
+
+# --- OS ----------------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini

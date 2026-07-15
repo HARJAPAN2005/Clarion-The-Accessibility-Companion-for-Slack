@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a Question
+    url: https://github.com/HARJAPAN2005/Clarion-The-Accessibility-Companion-for-Slack/discussions/new?category=q-a
+    about: Ask the community a question in GitHub Discussions.
+  - name: Share an Idea
+    url: https://github.com/HARJAPAN2005/Clarion-The-Accessibility-Companion-for-Slack/discussions/new?category=ideas
+    about: Propose a new feature or improvement.
+  - name: Documentation
+    url: https://github.com/HARJAPAN2005/Clarion-The-Accessibility-Companion-for-Slack/tree/main/docs
+    about: Browse the full Clarion documentation.

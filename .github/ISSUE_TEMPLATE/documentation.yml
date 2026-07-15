@@ -1,0 +1,39 @@
+name: Documentation Improvement
+description: Report a gap, error, or improvement in the documentation.
+title: "docs: <short description>"
+labels: ["documentation", "triage"]
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Which document or section?
+      placeholder: "e.g. docs/Deployment.md — Docker section"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type of improvement
+      options:
+        - Typo or grammar error
+        - Incorrect or outdated information
+        - Missing information
+        - Unclear explanation
+        - Missing example
+        - Broken link
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the issue or improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      description: If you have a suggested fix or addition, share it here.

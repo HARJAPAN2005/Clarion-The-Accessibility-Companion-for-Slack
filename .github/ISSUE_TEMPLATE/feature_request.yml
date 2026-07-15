@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Clarion.
+title: "feat: <short description>"
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before requesting a feature, check the [Roadmap](https://github.com/HARJAPAN2005/Clarion-The-Accessibility-Companion-for-Slack/blob/main/ROADMAP.md) to see if it is already planned.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the user need or gap this feature would address. Focus on the problem, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How do you think this should work?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered other approaches? Why did you prefer this one?
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which area does this affect?
+      options:
+        - Text simplification
+        - Thread summarization
+        - Image alt-text generation
+        - Jargon / term definition
+        - Inclusive language check
+        - User preferences
+        - Developer experience
+        - Documentation
+        - CI/CD / infrastructure
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been requested before.
+          required: true
+        - label: I checked the Roadmap and this is not already planned.
+          required: true

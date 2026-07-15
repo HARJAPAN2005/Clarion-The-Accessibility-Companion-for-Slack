@@ -1,0 +1,39 @@
+version: "3.9"
+
+# =============================================================================
+# Clarion — Docker Compose
+# =============================================================================
+# Development usage:
+#   docker compose up
+#
+# HTTP + OAuth mode:
+#   docker compose run --rm clarion python app_oauth.py
+# =============================================================================
+
+services:
+  clarion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: clarion:latest
+    container_name: clarion
+    restart: unless-stopped
+    env_file:
+      - .env
+    # Socket Mode does not bind a port, but expose one for OAuth mode.
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      # Persist OAuth installation data (only needed for app_oauth.py mode).
+      - clarion_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import app"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  clarion_data:
+    driver: local

@@ -1,9 +1,17 @@
 """
-Clarion accessibility tools.
+tools — Clarion accessibility tool implementations.
 
-Each function is callable directly (for shortcuts) and via the agent loop in
-agent.py. Every tool degrades gracefully: if there's no OpenRouter key it returns
-a deterministic, still-useful result so the sandbox demo never dead-ends.
+Each function is callable directly (via message shortcuts) and through the
+agent loop in ``agent.py``. Every tool degrades gracefully: when no API key
+is configured, it returns a deterministic, still-useful result so Clarion
+remains functional even without AI connectivity.
+
+Tools:
+    simplify_text      Plain-language rewrite of any message.
+    summarize_thread   Catch-up digest of a Slack thread.
+    generate_alt_text  Screen-reader description of an image.
+    define_term        Live acronym/jargon lookup via Real-Time Search.
+    inclusive_check    Flags exclusionary or jargon-heavy phrasing.
 """
 
 from __future__ import annotations
@@ -11,175 +19,162 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 from typing import Any
 
-from dotenv import load_dotenv
+from openai import APIConnectionError, APIError, APITimeoutError, RateLimitError
 
-load_dotenv()
-
+from config import DEFAULT_MODEL, DEFAULT_GEMINI_VISION_MODEL, get_gemini_client, get_openai_client
 from rts_client import realtime_search
 from slack_mcp import fetch_thread_messages
 
 logger = logging.getLogger("clarion.tools")
 
-DEFAULT_MODEL = "poolside/laguna-xs-2.1:free"
 
-
-_openai_client = None
-
-def _get_openai_client():
-    global _openai_client
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
-        return None
-
-    if _openai_client is None:
-        try:
-            from openai import OpenAI
-            _openai_client = OpenAI(
-                api_key=api_key,
-                base_url="https://openrouter.ai/api/v1"
-            )
-            logger.info("[AI] Provider: OpenRouter")
-        except ImportError:
-            logger.error("openai package missing; run `pip install openai`.")
-            return None
-    return _openai_client
-
-
-_gemini_client = None
-
-def _get_gemini_client():
-    global _gemini_client
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return None
-    if _gemini_client is None:
-        try:
-            from openai import OpenAI
-            _gemini_client = OpenAI(
-                api_key=api_key,
-                base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
-            )
-        except ImportError:
-            return None
-    return _gemini_client
+# ---------------------------------------------------------------------------
+# Shared LLM call helper
+# ---------------------------------------------------------------------------
 
 
 def _llm(system: str, user: str, image_url: str | None = None) -> str | None:
-    """Single LLM call with robust error handling, retries, and offline fallback. Returns None if unavailable."""
-    import time
-    from openai import APIError, APIConnectionError, RateLimitError, APITimeoutError
-    
+    """Make a single LLM call with retry logic and offline fallback.
+
+    Automatically selects the best available client and model:
+
+    - For image requests: prefers the Gemini client (``GEMINI_API_KEY``),
+      falls back to an OpenRouter vision model (``OPENROUTER_VISION_MODEL``).
+    - For text requests: uses the OpenRouter client with
+      ``OPENROUTER_MODEL``.
+
+    Args:
+        system: The system prompt.
+        user: The user message.
+        image_url: Optional image URL or base64 data URI to include.
+
+    Returns:
+        The model's response text, or ``None`` if unavailable.
+    """
     if image_url:
-        gemini_client = _get_gemini_client()
-        if gemini_client:
-            client = gemini_client
-            configured_model = "gemini-3.5-flash"
+        gemini = get_gemini_client()
+        if gemini:
+            client = gemini
+            model = DEFAULT_GEMINI_VISION_MODEL
         else:
-            client = _get_openai_client()
+            client = get_openai_client()
             if not client:
                 return None
-            configured_model = os.getenv("OPENROUTER_VISION_MODEL")
-            if not configured_model:
-                return "The currently configured AI model does not support image understanding. Please configure a vision-capable OpenRouter model or provide a GEMINI_API_KEY."
+            model = os.getenv("OPENROUTER_VISION_MODEL")
+            if not model:
+                return (
+                    "The currently configured AI model does not support image understanding. "
+                    "Please configure a vision-capable OpenRouter model or provide a "
+                    "GEMINI_API_KEY."
+                )
     else:
-        client = _get_openai_client()
+        client = get_openai_client()
         if not client:
             return None
-        configured_model = os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+        model = os.getenv("OPENROUTER_MODEL", DEFAULT_MODEL)
+
     content: list[dict[str, Any]] = [{"type": "text", "text": user}]
     if image_url:
         content.insert(0, {"type": "image_url", "image_url": {"url": image_url}})
 
     messages = [
         {"role": "system", "content": system},
-        {"role": "user", "content": content}
+        {"role": "user", "content": content},
     ]
 
-    def _attempt_call(model_to_use: str, retries: int = 0) -> str | None:
+    def _attempt(model_id: str, retries: int = 2) -> str | None:
         for attempt in range(retries + 1):
             try:
                 resp = client.chat.completions.create(
-                    model=model_to_use,
+                    model=model_id,
                     max_tokens=1400,
                     temperature=0.2,
                     stream=False,
-                    messages=messages
+                    messages=messages,
                 )
                 return resp.choices[0].message.content.strip()
-            except RateLimitError as e:
-                logger.warning(f"Rate limited (429). Attempt {attempt + 1}/{retries + 1}. Error: {e}")
+            except RateLimitError as exc:
+                logger.warning(
+                    "Rate limited (429) on attempt %d/%d: %s",
+                    attempt + 1,
+                    retries + 1,
+                    exc,
+                )
                 if attempt < retries:
-                    time.sleep(2 ** attempt)  # 1s, 2s backoff
+                    time.sleep(2**attempt)
                     continue
                 return None
-            except APIError as e:
-                status_code = getattr(e, 'status_code', None)
-                if status_code == 404:
-                    logger.error(f"Model unavailable (404): {model_to_use}")
-                    raise e  # Let the outer block handle 404 fallback
-                
-                # Handle other known OpenRouter error codes
-                if status_code in [401, 403]:
-                    logger.error(f"Authentication/Authorization error ({status_code}): {e}")
+            except APIError as exc:
+                status = getattr(exc, "status_code", None)
+                if status == 404:
+                    raise  # Caller handles model-not-found fallback.
+                if status in (401, 403):
+                    logger.error("Authentication error (%s): %s", status, exc)
                     return None
-                if status_code in [408, 500, 502, 503, 504]:
-                    logger.error(f"Server error ({status_code}): {e}")
+                if status in (408, 500, 502, 503, 504):
+                    logger.warning("Server error (%s) on attempt %d: %s", status, attempt + 1, exc)
                     if attempt < retries:
-                        time.sleep(2 ** attempt)
+                        time.sleep(2**attempt)
                         continue
                     return None
-                    
-                logger.error(f"Unexpected API error: {e}")
+                logger.error("Unexpected API error: %s", exc)
                 return None
-            except (APIConnectionError, APITimeoutError) as e:
-                logger.error(f"Connection/Timeout error: {e}")
+            except (APIConnectionError, APITimeoutError) as exc:
+                logger.warning("Connection/timeout error on attempt %d: %s", attempt + 1, exc)
                 if attempt < retries:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                     continue
                 return None
-            except Exception as e:
-                logger.error(f"Unexpected error during LLM call: {e}")
+            except Exception as exc:
+                logger.exception("Unexpected error during LLM call: %s", exc)
                 return None
         return None
 
-    # First try the configured model
     try:
-        result = _attempt_call(configured_model, retries=2)
+        result = _attempt(model, retries=2)
         if result:
             return result
-    except APIError as e:
-        status_code = getattr(e, 'status_code', None)
-        if status_code == 404 and configured_model != DEFAULT_MODEL:
-            logger.info(f"Attempting fallback to default model: {DEFAULT_MODEL}")
+    except APIError as exc:
+        if getattr(exc, "status_code", None) == 404 and model != DEFAULT_MODEL:
+            logger.info("Model not found; falling back to default: %s", DEFAULT_MODEL)
             try:
-                result = _attempt_call(DEFAULT_MODEL, retries=0)
+                result = _attempt(DEFAULT_MODEL, retries=0)
                 if result:
                     return result
-            except Exception as inner_e:
-                logger.error(f"Default model fallback failed: {inner_e}")
+            except Exception as inner:
+                logger.error("Default model fallback failed: %s", inner)
 
-    logger.warning("[AI] Provider: Offline Fallback")
+    logger.warning("All LLM attempts exhausted — returning None for offline fallback.")
     return None
 
 
 # ---------------------------------------------------------------------------
-# Tool 1 — plain-language rewrite  (Slack AI capability)
+# Tool 1 — Plain-language rewrite
 # ---------------------------------------------------------------------------
-_LEVELS = {
+
+_READING_LEVELS: dict[str, str] = {
     "grade5": "a 10-year-old reading for the first time",
     "grade8": "a 13-year-old, using simple sentences",
     "plain": "a busy adult who reads quickly",
     "concise": "someone who needs only the critical essentials",
 }
 
-_SIMPLIFY_SYSTEM = """You are Clarion, an accessibility companion that makes workplace messages easier to understand.
+_SIMPLIFY_SYSTEM = """\
+You are Clarion, an accessibility companion that makes workplace messages easier to understand.
 Rewrite the message below so {audience} understands it immediately.
 
 RULES — follow every one without exception:
 1. Preserve ALL of these exactly: names, owners, dates, deadlines, priorities, action items, numbers.
-2. Replace every piece of corporate jargon: "circle back" → "follow up", "leverage" → "use", "synergy" → "working together", "bandwidth" → "time/capacity", "move the needle" → "make progress", "low-hanging fruit" → "easy win", "touch base" → "check in", "action this" → "do this", "deep dive" → "look closely at", "best practice" → "what works well", "operationalize" → "put into action", "ideate" → "brainstorm", "align" → "agree", "deliverable" → "output/result".
+2. Replace every piece of corporate jargon: \
+"circle back" → "follow up", "leverage" → "use", "synergy" → "working together", \
+"bandwidth" → "time/capacity", "move the needle" → "make progress", \
+"low-hanging fruit" → "easy win", "touch base" → "check in", \
+"action this" → "do this", "deep dive" → "look closely at", \
+"best practice" → "what works well", "operationalize" → "put into action", \
+"ideate" → "brainstorm", "align" → "agree", "deliverable" → "output/result".
 3. Use short sentences. One idea per sentence. No walls of text.
 4. Keep a professional, calm tone. Not casual. Not chatty.
 5. Do NOT add intros like "Sure!" or "Here is the rewrite". Output only the rewritten message.
@@ -190,7 +185,8 @@ Begin your reply with exactly this line (no variations):
 
 Then the rewritten message on the next line.
 Close with exactly this line on its own line:
-_Clarity preserved. Complexity removed._"""
+_Clarity preserved. Complexity removed._\
+"""
 
 
 def simplify_text(
@@ -200,36 +196,66 @@ def simplify_text(
     language: str | None = None,
     **_: Any,
 ) -> str:
-    audience = _LEVELS.get(reading_level, _LEVELS["plain"])
+    """Rewrite ``text`` into plain language at the specified reading level.
+
+    When no AI client is available, applies a deterministic rule-based
+    simplification so the feature always returns a useful result.
+
+    Args:
+        deps: ``ClarionDeps`` instance (unused directly, kept for interface
+            consistency with the agent tool dispatch).
+        text: The message text to simplify.
+        reading_level: One of ``grade5``, ``grade8``, ``plain``, ``concise``.
+        language: Optional ISO language name for translation output.
+        **_: Absorbs extra kwargs from the agent dispatch layer.
+
+    Returns:
+        A plain-language rewrite wrapped in Clarion's standard formatting.
+    """
+    audience = _READING_LEVELS.get(reading_level, _READING_LEVELS["plain"])
     lang_note = language or "English"
     system = _SIMPLIFY_SYSTEM.format(audience=audience, language=lang_note)
-    out = _llm(system, text)
-    if out:
-        return out
+    result = _llm(system, text)
+    if result:
+        return result
     return _mechanical_simplify(text)
 
 
+_JARGON_REPLACEMENTS = [
+    (r"\b(leverage|utilize)\b", "use"),
+    (r"\b(synergize|synergies|synergy)\b", "work together"),
+    (r"\b(operationalize)\b", "put into action"),
+    (r"\b(circle back|touch base)\b", "follow up"),
+    (r"\b(bandwidth)\b", "capacity"),
+    (r"\b(move the needle)\b", "make progress"),
+    (r"\b(low.hanging fruit)\b", "easy win"),
+    (r"\b(deep dive)\b", "detailed look"),
+    (r"\b(ideate)\b", "brainstorm"),
+    (r"\b(deliverable)\b", "output"),
+    (r"\b(best practice)\b", "what works well"),
+]
+
+
 def _mechanical_simplify(text: str) -> str:
+    """Apply rule-based jargon replacement without AI.
+
+    Used as the offline fallback when no API key is configured or when
+    all AI calls fail.
+
+    Args:
+        text: The message text to process.
+
+    Returns:
+        A simplified version with common jargon replaced, wrapped in
+        Clarion's standard response formatting.
+    """
     sentences = re.split(r"(?<=[.!?])\s+", text.strip())
     lines = []
-    replacements = [
-        (r"\b(leverage|utilize)\b", "use"),
-        (r"\b(synergize|synergies|synergy)\b", "work together"),
-        (r"\b(operationalize)\b", "put into action"),
-        (r"\b(circle back|touch base)\b", "follow up"),
-        (r"\b(bandwidth)\b", "capacity"),
-        (r"\b(move the needle)\b", "make progress"),
-        (r"\b(low.hanging fruit)\b", "easy win"),
-        (r"\b(deep dive)\b", "detailed look"),
-        (r"\b(ideate)\b", "brainstorm"),
-        (r"\b(deliverable)\b", "output"),
-        (r"\b(best practice)\b", "what works well"),
-    ]
-    for s in sentences:
-        for pattern, repl in replacements:
-            s = re.sub(pattern, repl, s, flags=re.I)
-        if s.strip():
-            lines.append(s.strip())
+    for sentence in sentences:
+        for pattern, replacement in _JARGON_REPLACEMENTS:
+            sentence = re.sub(pattern, replacement, sentence, flags=re.I)
+        if sentence.strip():
+            lines.append(sentence.strip())
     body = "  ".join(lines) if lines else "(nothing to simplify)"
     return (
         "✨ *Clarion made this easier to read* — every important detail is preserved.\n"
@@ -239,9 +265,11 @@ def _mechanical_simplify(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Tool 2 — catch-up digest  (uses Slack MCP Server to read thread history)
+# Tool 2 — Thread catch-up digest
 # ---------------------------------------------------------------------------
-_DIGEST_SYSTEM = """You are Clarion, an accessibility companion helping someone catch up on a conversation they missed.
+
+_DIGEST_SYSTEM = """\
+You are Clarion, an accessibility companion helping someone catch up on a conversation they missed.
 Produce a structured, plain-language digest for someone returning from leave or joining a thread late.
 
 RULES:
@@ -271,7 +299,8 @@ One to three calm, clear sentences on what this conversation is about and where 
 ❓ *Still being worked out*
 - List anything unresolved or awaiting a decision.
 
-Do not add any text outside this structure. Do not include a closing sentence."""
+Do not add any text outside this structure. Do not include a closing sentence.\
+"""
 
 
 def summarize_thread(
@@ -280,6 +309,21 @@ def summarize_thread(
     thread_ts: str = "",
     **_: Any,
 ) -> str:
+    """Produce a plain-language catch-up digest for a Slack thread.
+
+    Fetches thread messages via the Slack MCP Server (when enabled) or the
+    Web API, then generates a structured digest with decisions, action items,
+    deadlines, and open questions.
+
+    Args:
+        deps: ``ClarionDeps`` instance providing the Slack ``WebClient``.
+        channel_id: The Slack channel ID containing the thread.
+        thread_ts: The timestamp of the thread's root message.
+        **_: Absorbs extra kwargs from the agent dispatch layer.
+
+    Returns:
+        A structured plain-language digest of the thread.
+    """
     client = getattr(deps, "client", None)
     messages = fetch_thread_messages(client, channel_id, thread_ts)
     if not messages:
@@ -289,13 +333,14 @@ def summarize_thread(
             "_Tip: use the shortcut from a message that already has replies._"
         )
     transcript = "\n".join(f"{m['user']}: {m['text']}" for m in messages)
-    out = _llm(_DIGEST_SYSTEM, transcript)
-    if out:
-        return out
-    # Offline fallback: structured skeleton
+    result = _llm(_DIGEST_SYSTEM, transcript)
+    if result:
+        return result
+    # Offline fallback: structured skeleton with live message count.
     last = messages[-1]["text"][:140]
     return (
-        f"📌 *You're all caught up. Here's what matters most.*\nThis conversation has {len(messages)} messages.\n\n"
+        f"📌 *You're all caught up. Here's what matters most.*\n"
+        f"This conversation has {len(messages)} messages.\n\n"
         f"✅ *Decisions made*\n{last}\n\n"
         "👤 *Who needs to do what*\nSee the thread for the full picture.\n\n"
         "📅 *Key dates and deadlines*\nNone detected — check the thread directly.\n\n"
@@ -304,13 +349,18 @@ def summarize_thread(
 
 
 # ---------------------------------------------------------------------------
-# Tool 3 — screen-reader alt-text
+# Tool 3 — Screen-reader alt-text
 # ---------------------------------------------------------------------------
-_ALT_SYSTEM = """You are Clarion, an accessibility companion creating descriptions for blind, low-vision, and screen-reader users.
+
+_ALT_SYSTEM = """\
+You are Clarion, an accessibility companion creating descriptions for blind, \
+low-vision, and screen-reader users.
 
 RULES:
-1. First: one tight sentence under 125 characters — this is the alt attribute text. Do NOT start with "Image of" or "Photo of".
-2. Then: a thorough description covering layout, objects, colours, text (if any), relationships between elements, and why it matters in context.
+1. First: one tight sentence under 125 characters — this is the alt attribute text. \
+Do NOT start with "Image of" or "Photo of".
+2. Then: a thorough description covering layout, objects, colours, text (if any), \
+relationships between elements, and why it matters in context.
 3. If the image contains any text, transcribe it word for word inside the description.
 4. Never invent details you cannot see. If something is unclear, say so plainly.
 5. Write as if speaking to a colleague who cannot see the screen at all.
@@ -323,24 +373,45 @@ Output this exact format:
 🔍 *Full visual description*
 [thorough paragraph — layout, content, text transcription if present, context]
 
-If the image contained text, end with: _All text in this image has been transcribed above._"""
+If the image contained text, end with: _All text in this image has been transcribed above._\
+"""
 
 
 def _download_slack_image_as_base64(url: str, token: str) -> str | None:
-    import requests
+    """Download a Slack-hosted image and encode it as a base64 data URI.
+
+    Slack image URLs require a bearer token for access. This helper downloads
+    the image and re-encodes it so it can be passed directly to a vision model.
+
+    Args:
+        url: The Slack private image URL.
+        token: A valid Slack bot token with ``files:read`` scope.
+
+    Returns:
+        A ``data:<mime>;base64,<data>`` URI string, or ``None`` on failure.
+    """
     import base64
+
+    import requests
+
     if not url.startswith("http"):
         return None
     try:
-        resp = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=10)
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
         if resp.status_code != 200:
+            logger.warning("Failed to download image: HTTP %s", resp.status_code)
             return None
         mime = resp.headers.get("Content-Type", "image/jpeg")
         b64 = base64.b64encode(resp.content).decode("utf-8")
         return f"data:{mime};base64,{b64}"
-    except Exception as e:
-        logger.error(f"Failed to download image: {e}")
+    except Exception as exc:
+        logger.error("Failed to download image: %s", exc)
         return None
+
 
 def generate_alt_text(
     deps: Any = None,
@@ -348,8 +419,28 @@ def generate_alt_text(
     context: str = "",
     **_: Any,
 ) -> str:
+    """Generate screen-reader alt-text and a full visual description for an image.
+
+    Downloads the image from Slack (authenticating with the bot token) and
+    passes it to a vision-capable model. Falls back to a helpful prompt when
+    no vision model is configured.
+
+    Args:
+        deps: ``ClarionDeps`` instance providing the Slack ``WebClient``.
+        image_url: The Slack private URL or permalink of the image.
+        context: Surrounding message text for additional context.
+        **_: Absorbs extra kwargs from the agent dispatch layer.
+
+    Returns:
+        A structured alt-text and full visual description.
+    """
     if image_url.startswith("http"):
-        token = getattr(deps, "client", None).token if getattr(deps, "client", None) else os.environ.get("SLACK_BOT_TOKEN")
+        slack_client = getattr(deps, "client", None)
+        token = (
+            slack_client.token
+            if slack_client
+            else os.environ.get("SLACK_BOT_TOKEN")
+        )
         if token:
             b64_url = _download_slack_image_as_base64(image_url, token)
             if b64_url:
@@ -360,22 +451,26 @@ def generate_alt_text(
         if context
         else "Describe this image for someone who cannot see it."
     )
-    out = _llm(_ALT_SYSTEM, user, image_url=image_url)
-    if out:
-        return out
+    result = _llm(_ALT_SYSTEM, user, image_url=image_url)
+    if result:
+        return result
     return (
         "🖼 *Screen-reader friendly description*\n"
-        "Clarion needs an active connection to describe this image.\n\n"
+        "Clarion needs an active AI connection to describe this image.\n\n"
         "🔍 *Full visual description*\n"
         "_To make this image accessible to everyone, ask the person who shared it to add a "
-        "brief description in the message. Good alt-text says what is shown and why it matters._"
+        "brief description in the message. Good alt-text says what is shown and why it "
+        "matters._"
     )
 
 
 # ---------------------------------------------------------------------------
-# Tool 4 — define term  (Real-Time Search API)
+# Tool 4 — Jargon and acronym definitions
 # ---------------------------------------------------------------------------
-_DEFINE_SYSTEM = """You are Clarion, an accessibility companion helping someone understand a term they've encountered at work.
+
+_DEFINE_SYSTEM = """\
+You are Clarion, an accessibility companion helping someone understand a term \
+they've encountered at work.
 Write for someone who genuinely doesn't know this term and may feel uncertain about asking.
 Make them feel informed and included — never embarrassed.
 
@@ -394,7 +489,8 @@ Output EXACTLY this structure:
 [Based on the workspace context, or the closest reasonable meaning if no context is available]
 
 📝 *Example in a sentence*
-[A concrete, realistic workplace sentence showing it in use]"""
+[A concrete, realistic workplace sentence showing it in use]\
+"""
 
 
 def define_term(
@@ -403,6 +499,23 @@ def define_term(
     channel_id: str = "",
     **_: Any,
 ) -> str:
+    """Define an acronym or piece of jargon with live workspace context.
+
+    Queries the Real-Time Search API to ground the definition in how the
+    team actually uses the term. Falls back to the demo glossary when the
+    RTS API is unavailable, and to a structured "ask a teammate" response
+    when no context exists at all.
+
+    Args:
+        deps: ``ClarionDeps`` instance (unused directly).
+        term: The acronym or jargon term to define.
+        channel_id: Scopes the Real-Time Search to a specific channel.
+        **_: Absorbs extra kwargs from the agent dispatch layer.
+
+    Returns:
+        A three-part definition with plain-language explanation, team usage
+        context, and a realistic usage example.
+    """
     hits = realtime_search(query=term, channel_id=channel_id)
     context_block = (
         "\n".join(f"- {h['snippet']} (source: {h['source']})" for h in hits)
@@ -410,18 +523,19 @@ def define_term(
         else "No live workspace results found for this term."
     )
     user = f"Term: {term}\n\nLive workspace context:\n{context_block}"
-    out = _llm(_DEFINE_SYSTEM, user)
-    if out:
-        return out
+    result = _llm(_DEFINE_SYSTEM, user)
+    if result:
+        return result
     if hits:
         return (
             f"💡 *Here's what that means*\n"
             f"Here's how your workspace uses *{term}*:\n{context_block}\n\n"
-            f"_Everyone deserves conversations that are easy to understand._"
+            "_Everyone deserves conversations that are easy to understand._"
         )
     return (
         f"💡 *Here's what that means*\n"
-        f"Clarion couldn't find a live definition for *{term}* — it may be shorthand unique to your team.\n\n"
+        f"Clarion couldn't find a live definition for *{term}* — it may be shorthand "
+        f"unique to your team.\n\n"
         f"📍 *How your team uses it*\n"
         f"The best person to ask is whoever used this term in the conversation.\n\n"
         f"📝 *Example in a sentence*\n"
@@ -430,9 +544,10 @@ def define_term(
 
 
 # ---------------------------------------------------------------------------
-# Tool 5 — inclusive language check
+# Tool 5 — Inclusive language check
 # ---------------------------------------------------------------------------
-_FLAGS = {
+
+_KNOWN_BARRIERS: dict[str, str] = {
     r"\blow.hanging fruit\b": "easy win",
     r"\bboil the ocean\b": "take on too much at once",
     r"\bmove the needle\b": "make progress",
@@ -448,17 +563,21 @@ _FLAGS = {
     r"\bcircle back\b": "follow up",
 }
 
-_INCLUSIVE_SYSTEM = """You are Clarion, an accessibility companion helping people communicate more clearly and inclusively.
-Review the draft below as a supportive writing coach — not a critic. The goal is to help this message reach more people.
+_INCLUSIVE_SYSTEM = """\
+You are Clarion, an accessibility companion helping people communicate more clearly and inclusively.
+Review the draft below as a supportive writing coach — not a critic. The goal is to help this \
+message reach more people.
 
-The people who benefit most from clearer writing: non-native speakers, people with dyslexia or ADHD, newcomers, screen-reader users, and anyone reading quickly under pressure.
+The people who benefit most from clearer writing: non-native speakers, people with dyslexia or \
+ADHD, newcomers, screen-reader users, and anyone reading quickly under pressure.
 
 RULES:
 1. Only flag genuine barriers. Don't invent issues that aren't there.
 2. Explain WHY each phrase creates difficulty — be specific, not generic.
 3. Rewrite the full sentence, not just the flagged word.
 4. Keep the tone warm and coaching. The writer is trying to communicate well.
-5. If the message is already clear and inclusive: celebrate that warmly in one sentence. No sections needed.
+5. If the message is already clear and inclusive: celebrate that warmly in one sentence. \
+No sections needed.
 
 Begin with: 🌍 *Here's a version that's easier for more people to understand.*
 
@@ -475,25 +594,48 @@ When issues exist, output this structure for each one (repeat as needed):
 
 ---
 
-Small wording changes make a big difference."""
+Small wording changes make a big difference.\
+"""
 
 
 def inclusive_check(deps: Any = None, text: str = "", **_: Any) -> str:
-    out = _llm(_INCLUSIVE_SYSTEM, text)
-    if out:
-        return out
-    # Mechanical offline fallback
+    """Check a draft message for barriers to inclusive communication.
+
+    Analyses the text for jargon, idioms, unexplained acronyms, and phrasing
+    that may be unclear to non-native speakers, neurodivergent readers, or
+    newcomers. Falls back to rule-based pattern matching when AI is unavailable.
+
+    Args:
+        deps: ``ClarionDeps`` instance (unused directly).
+        text: The draft message text to review.
+        **_: Absorbs extra kwargs from the agent dispatch layer.
+
+    Returns:
+        A coaching-style review with specific flags and improved alternatives,
+        or a confirmation that the message is already clear and inclusive.
+    """
+    result = _llm(_INCLUSIVE_SYSTEM, text)
+    if result:
+        return result
+
+    # Mechanical offline fallback using known barrier patterns.
     found = []
-    for pattern, repl in _FLAGS.items():
-        m = re.search(pattern, text, flags=re.I)
-        if m:
+    for pattern, suggestion in _KNOWN_BARRIERS.items():
+        match = re.search(pattern, text, flags=re.I)
+        if match:
             found.append(
-                f"⚠️ *\"{m.group(0)}\"*\n"
-                f"This phrase may be unclear to people who didn't grow up with it — including non-native speakers and new team members.\n\n"
-                f"🌍 *A version that works for everyone*\nTry: _{repl}_ instead.\n\n"
-                f"👥 *Who this helps most*\nNon-native speakers, newcomers, and anyone unfamiliar with this expression.\n\n---"
+                f'⚠️ *"{match.group(0)}"*\n'
+                "This phrase may be unclear to people who didn't grow up with it — "
+                "including non-native speakers and new team members.\n\n"
+                f"🌍 *A version that works for everyone*\nTry: _{suggestion}_ instead.\n\n"
+                "👥 *Who this helps most*\n"
+                "Non-native speakers, newcomers, and anyone unfamiliar with this "
+                "expression.\n\n---"
             )
     if not found:
-        return "✅ This message is clear and inclusive — Clarion didn't find anything that could create barriers."
+        return (
+            "✅ This message is clear and inclusive — "
+            "Clarion didn't find anything that could create barriers."
+        )
     header = "🌍 *Here's a version that's easier for more people to understand.*\n\n"
     return header + "\n".join(found)

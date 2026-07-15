@@ -1,0 +1,29 @@
+# Code owners for Clarion.
+# These owners are automatically requested for review on PRs that touch
+# the listed paths. See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Global fallback — all files not covered below
+* @HARJAPAN2005
+
+# Core agent and tool logic
+agent.py       @HARJAPAN2005
+tools.py       @HARJAPAN2005
+config.py      @HARJAPAN2005
+
+# Slack event listeners
+listeners/     @HARJAPAN2005
+
+# Infrastructure and configuration
+Dockerfile          @HARJAPAN2005
+docker-compose.yml  @HARJAPAN2005
+pyproject.toml      @HARJAPAN2005
+requirements.txt    @HARJAPAN2005
+Makefile            @HARJAPAN2005
+
+# GitHub Actions workflows
+.github/workflows/  @HARJAPAN2005
+
+# Documentation
+docs/           @HARJAPAN2005
+README.md       @HARJAPAN2005
+CHANGELOG.md    @HARJAPAN2005

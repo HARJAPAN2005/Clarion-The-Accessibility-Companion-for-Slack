@@ -1,0 +1,73 @@
+name: Accessibility Issue
+description: Report an accessibility problem with Clarion itself or its output.
+title: "a11y: <short description>"
+labels: ["accessibility", "bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Clarion is an accessibility tool — accessibility issues affecting Clarion itself or the quality of its output are first-class bugs. Thank you for reporting this.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What kind of accessibility issue is this?
+      options:
+        - Output quality — simplified text is not clear enough
+        - Output quality — alt-text description is inaccurate or insufficient
+        - Output quality — thread digest is missing key information
+        - Output quality — inclusive check missed a real barrier
+        - Screen reader — Clarion's Slack interface is not accessible
+        - Cognitive load — the UI is confusing or overwhelming
+        - Language — output contains jargon or complex language
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the accessibility issue
+      description: What happened, and how does it create a barrier for users?
+    validations:
+      required: true
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example input and output
+      description: |
+        Paste the input you gave Clarion and the output it produced (if applicable).
+        Remove any sensitive information before pasting.
+      placeholder: |
+        Input: "We need to leverage our bandwidth to circle back ASAP."
+        Output: ...
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What would good output look like?
+      description: If you have a suggestion for what Clarion should have produced, include it here.
+
+  - type: dropdown
+    id: affected_users
+    attributes:
+      label: Who is most affected?
+      multiple: true
+      options:
+        - People with dyslexia
+        - People with ADHD
+        - Non-native English speakers
+        - People who are blind or have low vision
+        - Screen-reader users
+        - People who joined a conversation late
+        - Other
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this has not been reported before.
+          required: true

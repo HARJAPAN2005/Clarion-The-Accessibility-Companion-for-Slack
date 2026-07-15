@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-clarion.egg-info/PKG-INFO
-clarion.egg-info/SOURCES.txt
-clarion.egg-info/dependency_links.txt
-clarion.egg-info/requires.txt
-clarion.egg-info/top_level.txt
-listeners/__init__.py
-listeners/_stream.py
